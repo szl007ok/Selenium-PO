@@ -1,0 +1,112 @@
+#BasePage.py文件
+import time
+from selenium import webdriver
+import unittest
+
+class BasePage():
+    def find_id(self,id_key):
+        return self.driver.find_element_by_id(id_key)
+    def find_name(self,name_key):
+        return self.driver.find_element_by_name(name_key)
+
+
+class WebMailPage(BasePage):
+    def __init__(self, driver):
+        self.driver = driver
+        # 设置全局操作时间
+        self.driver.implicitly_wait(10)
+        # 设置浏览器窗口
+        self.driver.set_window_size(1080, 800)
+
+    def open(self, url):
+        self.driver.get(url)
+
+    def userNameAndPassWord(self,id1,id2,contents):
+        self.find_id(id1).click()
+        self.find_id(id2).clear()
+        self.find_id(id2).send_keys(contents)
+
+    def search_button(self,user, passwd,tag):
+        # 输入用户名
+        self.userNameAndPassWord('usernameTip','username',user)
+        # 输入密码
+        self.userNameAndPassWord('userType', 'userTypePwd', passwd)
+        # 登陆
+        self.driver.find_element_by_id('wmSubBtn').click()
+
+
+#TestPO.py文件
+import time
+from selenium import webdriver
+from selenium.webdriver.support.select import Select
+from BasePage import WebMailPage
+import unittest
+import ddt
+import os
+import warnings
+
+@ddt.ddt
+class WebMailTest(unittest.TestCase):
+
+    def setUp(self) :#初始定义，setUpClass只需启动一次浏览器即可
+        warnings.simplefilter('ignore', ResourceWarning)
+        self.driver = webdriver.Chrome()
+        self.url = "http://webmail.winning.com.cn/"
+
+    def tearDown(self):
+        self.driver.quit()
+
+    @ddt.data(
+                  ["szl", "", 'a'],
+                  ["", "123456", 'b'],
+                  ["", "", 'c'],
+                  ["szl", "12345", 'd'],
+                  ["szl", "123456", 'e']
+                  )
+
+    @ddt.unpack
+    def testLogin(self,user, passwd,tag):
+        page = WebMailPage(self.driver)
+        page.open(self.url)
+        page.search_button(user, passwd,tag)
+
+        #断言
+        if tag=='a':
+            dig_alert = self.driver.switch_to.alert
+            self.assertIn('密码不能为空', dig_alert.text, msg='测试失败时打印的信息a')
+        elif tag=='b':
+            dig_alert = self.driver.switch_to.alert
+            self.assertIn('邮箱帐号不能为空！', dig_alert.text, msg='测试失败时打印的信息b')
+        elif tag == 'c':
+            dig_alert = self.driver.switch_to.alert
+            self.assertIn('邮箱帐号不能为空！', dig_alert.text, msg='测试失败时打印的信息c')
+        elif tag=='d':
+            errorTxts = self.driver.find_element_by_css_selector('.errorTxts').text
+            self.assertIn('您的账号或密码有误，请重新输入！', errorTxts, msg='测试失败时打印的信息d')
+        elif tag=='e':
+            #切换到iframe
+            self.driver.switch_to.frame("tabsHome")
+            usr = self.driver.find_element_by_id('usr').text
+            self.assertEqual('szl', usr, msg='测试失败时打印的信息e')
+            self.driver.switch_to.default_content()
+
+#Test_Run.py文件
+# coding: utf-8
+from HTMLTestRunner import HTMLTestRunner
+import unittest
+from TestPO import WebMailTest
+
+if __name__ == "__main__":
+    filename = r"D:\mytest\test.html"  # 定义报告存放路径
+    print(filename)
+    fp = open(filename, 'wb')
+    # 构造测试套件
+    suite = unittest.TestSuite()
+    # 第一种方法：传入'模块名.TestCase名'
+    suite.addTests(unittest.TestLoader().loadTestsFromName('TestPO.WebMailTest'))
+    # 执行测试
+    runner = HTMLTestRunner(stream=fp,
+                                title='Test',
+                            description='测试结果如下: ')
+    runner.run(suite)
+    fp.close()
